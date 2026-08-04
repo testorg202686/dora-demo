@@ -1,0 +1,32 @@
+name: Deployment Failure Simulation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+
+  deploy-failed:
+
+    runs-on: ubuntu-latest
+
+    environment:
+      name: production
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy
+        run: |
+          echo "Deploying application..."
+
+          sleep 10
+
+          echo "Deployment failed"
+
+          exit 1
