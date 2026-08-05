@@ -10,6 +10,7 @@ permissions:
 
 env:
   GH_TOKEN: ${{ secrets.DORA_DEMO_TOKEN }}
+  REPO: testorg202686/dora-demo
 
 jobs:
 
@@ -21,7 +22,8 @@ jobs:
       branch: ${{ steps.branch.outputs.name }}
 
     steps:
-      - name: Checkout
+
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Create feature branch
@@ -47,10 +49,12 @@ jobs:
       - name: Create Pull Request
         run: |
           gh pr create \
+            --repo $REPO \
             --title "DORA demo change" \
             --body "Automated change for DevLake DORA metrics" \
             --base main \
             --head "${{ steps.branch.outputs.name }}"
+
 
   merge-pr:
 
@@ -60,14 +64,22 @@ jobs:
 
     steps:
 
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Merge PR
         run: |
+
           PR=$(gh pr list \
+            --repo $REPO \
             --head "${{ needs.create-pr.outputs.branch }}" \
             --json number \
             --jq '.[0].number')
 
+          echo "Merging PR: $PR"
+
           gh pr merge $PR \
+            --repo $REPO \
             --merge \
             --delete-branch
 
@@ -106,7 +118,7 @@ jobs:
 
   deploy-production-success-1:
 
-    name: Production Deployment 1
+    name: Production Deployment Success
     needs: deploy-staging
     runs-on: ubuntu-latest
 
@@ -140,9 +152,7 @@ jobs:
   deploy-production-recovery:
 
     name: Production Recovery Deployment
-    needs:
-      - deploy-production-failure
-
+    needs: deploy-production-failure
     if: always()
 
     runs-on: ubuntu-latest
