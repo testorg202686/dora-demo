@@ -1,0 +1,157 @@
+name: DORA Demo Generator
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+env:
+  GH_TOKEN: ${{ secrets.DORA_DEMO_TOKEN }}
+
+jobs:
+
+  create-pr:
+    name: Create Feature PR
+    runs-on: ubuntu-latest
+
+    outputs:
+      branch: ${{ steps.branch.outputs.name }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create feature branch
+        id: branch
+        run: |
+          BRANCH="feature/dora-demo-$(date +%s)"
+          echo "name=$BRANCH" >> $GITHUB_OUTPUT
+
+          git checkout -b $BRANCH
+
+      - name: Create demo change
+        run: |
+          echo "DORA demo change $(date)" >> dora-demo.txt
+
+          git config user.name "dora-demo-bot"
+          git config user.email "dora-demo@users.noreply.github.com"
+
+          git add dora-demo.txt
+          git commit -m "feat: add DORA demo change"
+
+          git push origin HEAD:${{ steps.branch.outputs.name }}
+
+      - name: Create Pull Request
+        run: |
+          gh pr create \
+            --title "DORA demo change" \
+            --body "Automated change for DevLake DORA metrics" \
+            --base main \
+            --head "${{ steps.branch.outputs.name }}"
+
+  merge-pr:
+
+    name: Merge Pull Request
+    needs: create-pr
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Merge PR
+        run: |
+          PR=$(gh pr list \
+            --head "${{ needs.create-pr.outputs.branch }}" \
+            --json number \
+            --jq '.[0].number')
+
+          gh pr merge $PR \
+            --merge \
+            --delete-branch
+
+
+  deploy-dev:
+
+    name: Deploy DEV
+    needs: merge-pr
+    runs-on: ubuntu-latest
+
+    environment:
+      name: DEV
+
+    steps:
+
+      - name: Deployment
+        run: |
+          echo "DEV deployment successful"
+
+
+  deploy-staging:
+
+    name: Deploy STAGING
+    needs: deploy-dev
+    runs-on: ubuntu-latest
+
+    environment:
+      name: STAGING
+
+    steps:
+
+      - name: Deployment
+        run: |
+          echo "STAGING deployment successful"
+
+
+  deploy-production-success-1:
+
+    name: Production Deployment 1
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+
+    environment:
+      name: PRODUCTION
+
+    steps:
+
+      - name: Deployment
+        run: |
+          echo "PRODUCTION deployment successful"
+
+
+  deploy-production-failure:
+
+    name: Production Failed Deployment
+    needs: deploy-production-success-1
+    runs-on: ubuntu-latest
+
+    environment:
+      name: PRODUCTION
+
+    steps:
+
+      - name: Simulate failure
+        run: |
+          echo "Simulating failed production deployment"
+          exit 1
+
+
+  deploy-production-recovery:
+
+    name: Production Recovery Deployment
+    needs:
+      - deploy-production-failure
+
+    if: always()
+
+    runs-on: ubuntu-latest
+
+    environment:
+      name: PRODUCTION
+
+    steps:
+
+      - name: Recovery deployment
+        run: |
+          echo "PRODUCTION recovery deployment successful"
