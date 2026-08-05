@@ -45,6 +45,10 @@ jobs:
           echo "Deploying commit:"
           git rev-parse HEAD
 
+          echo "Commit date"
+
+          git log -1 --format=%cI
+
           echo "Environment:"
           echo "${{ inputs.environment }}"
 
