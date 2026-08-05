@@ -2,6 +2,11 @@ name: DORA Demo Generator
 
 on:
   workflow_dispatch:
+    inputs:
+      iterations:
+        description: "Number of DORA scenarios to generate"
+        required: true
+        default: "5"
 
 permissions:
   contents: write
@@ -12,156 +17,146 @@ env:
   GH_TOKEN: ${{ secrets.DORA_DEMO_TOKEN }}
   REPO: testorg202686/dora-demo
 
+
 jobs:
 
-  create-pr:
-    name: Create Feature PR
-    runs-on: ubuntu-latest
+  generate-dora-data:
 
-    outputs:
-      branch: ${{ steps.branch.outputs.name }}
+    name: Generate DORA Events
+    runs-on: ubuntu-latest
 
     steps:
 
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Create feature branch
-        id: branch
+
+      - name: Configure Git
         run: |
-          BRANCH="feature/dora-demo-$(date +%s)"
-          echo "name=$BRANCH" >> $GITHUB_OUTPUT
-
-          git checkout -b $BRANCH
-
-      - name: Create demo change
-        run: |
-          echo "DORA demo change $(date)" >> dora-demo.txt
-
           git config user.name "dora-demo-bot"
           git config user.email "dora-demo@users.noreply.github.com"
 
-          git add dora-demo.txt
-          git commit -m "feat: add DORA demo change"
 
-          git push origin HEAD:${{ steps.branch.outputs.name }}
-
-      - name: Create Pull Request
-        run: |
-          gh pr create \
-            --repo $REPO \
-            --title "DORA demo change" \
-            --body "Automated change for DevLake DORA metrics" \
-            --base main \
-            --head "${{ steps.branch.outputs.name }}"
-
-
-  merge-pr:
-
-    name: Merge Pull Request
-    needs: create-pr
-    runs-on: ubuntu-latest
-
-    steps:
-
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Merge PR
+      - name: Generate DORA scenarios
         run: |
 
-          PR=$(gh pr list \
-            --repo $REPO \
-            --head "${{ needs.create-pr.outputs.branch }}" \
-            --json number \
-            --jq '.[0].number')
+          ITERATIONS=${{ github.event.inputs.iterations }}
 
-          echo "Merging PR: $PR"
-
-          gh pr merge $PR \
-            --repo $REPO \
-            --merge \
-            --delete-branch
+          echo "Generating $ITERATIONS DORA scenarios"
 
 
-  deploy-dev:
+          for i in $(seq 1 $ITERATIONS)
+          do
 
-    name: Deploy DEV
-    needs: merge-pr
-    runs-on: ubuntu-latest
-
-    environment:
-      name: DEV
-
-    steps:
-
-      - name: Deployment
-        run: |
-          echo "DEV deployment successful"
+            echo "================================="
+            echo "Generating scenario $i"
+            echo "================================="
 
 
-  deploy-staging:
-
-    name: Deploy STAGING
-    needs: deploy-dev
-    runs-on: ubuntu-latest
-
-    environment:
-      name: STAGING
-
-    steps:
-
-      - name: Deployment
-        run: |
-          echo "STAGING deployment successful"
+            BRANCH="feature/dora-demo-$i-$(date +%s)"
 
 
-  deploy-production-success-1:
-
-    name: Production Deployment Success
-    needs: deploy-staging
-    runs-on: ubuntu-latest
-
-    environment:
-      name: PRODUCTION
-
-    steps:
-
-      - name: Deployment
-        run: |
-          echo "PRODUCTION deployment successful"
+            echo "Creating branch $BRANCH"
 
 
-  deploy-production-failure:
+            git checkout main
 
-    name: Production Failed Deployment
-    needs: deploy-production-success-1
-    runs-on: ubuntu-latest
-
-    environment:
-      name: PRODUCTION
-
-    steps:
-
-      - name: Simulate failure
-        run: |
-          echo "Simulating failed production deployment"
-          exit 1
+            git pull
 
 
-  deploy-production-recovery:
+            git checkout -b $BRANCH
 
-    name: Production Recovery Deployment
-    needs: deploy-production-failure
-    if: always()
 
-    runs-on: ubuntu-latest
+            echo "DORA demo change $i $(date)" >> dora-demo.txt
 
-    environment:
-      name: PRODUCTION
 
-    steps:
+            git add dora-demo.txt
 
-      - name: Recovery deployment
-        run: |
-          echo "PRODUCTION recovery deployment successful"
+            git commit \
+              -m "feat: DORA demo change $i"
+
+
+            git push origin $BRANCH
+
+
+
+            echo "Creating Pull Request"
+
+
+            gh pr create \
+              --repo $REPO \
+              --title "DORA Demo Change $i" \
+              --body "Automated DORA demo PR $i" \
+              --base main \
+              --head $BRANCH
+
+
+
+            echo "Waiting before merge"
+
+            sleep 30
+
+
+
+            PR=$(gh pr list \
+              --repo $REPO \
+              --head $BRANCH \
+              --json number \
+              --jq '.[0].number')
+
+
+            echo "Merging PR $PR"
+
+
+            gh pr merge $PR \
+              --repo $REPO \
+              --merge \
+              --delete-branch
+
+
+
+            echo "Waiting for merge"
+
+            sleep 30
+
+
+
+            echo "Simulating DEV deployment"
+
+            gh workflow run \
+              --repo $REPO \
+              deploy-demo.yml \
+              -f environment=DEV
+
+
+
+            sleep 30
+
+
+
+            echo "Simulating STAGING deployment"
+
+            gh workflow run \
+              --repo $REPO \
+              deploy-demo.yml \
+              -f environment=STAGING
+
+
+
+            sleep 30
+
+
+
+            echo "Simulating PRODUCTION deployment"
+
+            gh workflow run \
+              --repo $REPO \
+              deploy-demo.yml \
+              -f environment=PRODUCTION
+
+
+
+            sleep 60
+
+
+          done
