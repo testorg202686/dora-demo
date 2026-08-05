@@ -6,12 +6,12 @@ on:
       environment:
         description: "Target environment"
         required: true
-        default: "dev"
+        default: "DEV"
         type: choice
         options:
-          - dev
-          - staging
-          - production
+          - DEV
+          - STAGING
+          - PRODUCTION
 
 permissions:
   contents: read
