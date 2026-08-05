@@ -1,0 +1,71 @@
+name: Demo Deployment
+
+on:
+
+  workflow_dispatch:
+
+    inputs:
+
+      environment:
+
+        description: Deployment environment
+
+        required: true
+
+        type: choice
+
+        options:
+          - DEV
+          - STAGING
+          - PRODUCTION
+
+
+jobs:
+
+  deploy:
+
+    runs-on: ubuntu-latest
+
+
+    environment:
+
+      name: ${{ inputs.environment }}
+
+
+    steps:
+
+      - name: Checkout commit
+        uses: actions/checkout@v4
+
+
+      - name: Deploy
+
+        run: |
+
+          echo "Deploying commit:"
+          git rev-parse HEAD
+
+          echo "Environment:"
+          echo "${{ inputs.environment }}"
+
+
+      - name: Simulate production failure
+
+        if: inputs.environment == 'PRODUCTION'
+
+        continue-on-error: true
+
+        run: |
+
+          echo "Simulating production failure"
+
+          exit 1
+
+
+      - name: Recovery deployment
+
+        if: inputs.environment == 'PRODUCTION'
+
+        run: |
+
+          echo "Production recovery successful"
