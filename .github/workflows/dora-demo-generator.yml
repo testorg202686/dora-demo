@@ -1,19 +1,26 @@
 name: DORA Demo Generator
 
 on:
+
   workflow_dispatch:
+
     inputs:
+
       iterations:
         description: "Number of DORA scenarios to generate"
         required: true
-        default: "5"
+        default: "15"
+
 
 permissions:
+
   contents: write
   pull-requests: write
   actions: write
 
+
 env:
+
   GH_TOKEN: ${{ secrets.DORA_DEMO_TOKEN }}
   REPO: testorg202686/dora-demo
 
@@ -22,41 +29,68 @@ jobs:
 
   generate-dora-data:
 
-    name: Generate DORA Events
+    name: Generate Historical DORA Data
+
     runs-on: ubuntu-latest
 
+
     steps:
+
 
       - name: Checkout repository
         uses: actions/checkout@v4
 
 
+
       - name: Configure Git
+
         run: |
+
           git config user.name "dora-demo-bot"
+
           git config user.email "dora-demo@users.noreply.github.com"
 
 
+
       - name: Generate DORA scenarios
+
         run: |
 
           ITERATIONS=${{ github.event.inputs.iterations }}
 
-          echo "Generating $ITERATIONS DORA scenarios"
+          echo "Generating $ITERATIONS historical DORA scenarios"
+
 
 
           for i in $(seq 1 $ITERATIONS)
+
           do
 
+
             echo "================================="
-            echo "Generating scenario $i"
+            echo "Scenario $i"
             echo "================================="
+
+
+
+            #
+            # Generate historical date
+            #
+            DAYS_AGO=$((i))
+
+            EVENT_DATE=$(date \
+              -d "-${DAYS_AGO} days" \
+              '+%Y-%m-%dT12:00:00')
+
 
 
             BRANCH="feature/dora-demo-$i-$(date +%s)"
 
 
-            echo "Creating branch $BRANCH"
+
+            echo "Using historical date:"
+            echo $EVENT_DATE
+
 
 
             git checkout main
@@ -64,37 +98,43 @@ jobs:
             git pull
 
 
+
             git checkout -b $BRANCH
 
 
-            echo "DORA demo change $i $(date)" >> dora-demo.txt
+
+            echo "DORA historical change $i" >> dora-demo.txt
+
 
 
             git add dora-demo.txt
 
+
+
             git commit \
-              -m "feat: DORA demo change $i"
+              --date="$EVENT_DATE" \
+              -m "feat: DORA historical change $i"
+
 
 
             git push origin $BRANCH
 
 
 
-            echo "Creating Pull Request"
+            echo "Creating PR"
+
 
 
             gh pr create \
               --repo $REPO \
-              --title "DORA Demo Change $i" \
-              --body "Automated DORA demo PR $i" \
+              --title "DORA Historical Change $i" \
+              --body "Automated DORA scenario $i" \
               --base main \
               --head $BRANCH
 
 
 
-            echo "Waiting before merge"
-
-            sleep 30
+            sleep 10
 
 
 
@@ -105,7 +145,9 @@ jobs:
               --jq '.[0].number')
 
 
+
             echo "Merging PR $PR"
+
 
 
             gh pr merge $PR \
@@ -115,48 +157,50 @@ jobs:
 
 
 
-            echo "Waiting for merge"
-
-            sleep 30
+            sleep 15
 
 
 
-            echo "Simulating DEV deployment"
+            echo "Starting DEV deployment"
 
-            gh workflow run \
+
+
+            gh workflow run deploy-demo.yml \
               --repo $REPO \
-              deploy-demo.yml \
               -f environment=DEV
 
 
 
-            sleep 30
+            sleep 15
 
 
 
-            echo "Simulating STAGING deployment"
+            echo "Starting STAGING deployment"
 
-            gh workflow run \
+
+
+            gh workflow run deploy-demo.yml \
               --repo $REPO \
-              deploy-demo.yml \
               -f environment=STAGING
 
 
 
-            sleep 30
+            sleep 15
 
 
 
-            echo "Simulating PRODUCTION deployment"
+            echo "Starting PRODUCTION deployment"
 
-            gh workflow run \
+
+
+            gh workflow run deploy-demo.yml \
               --repo $REPO \
-              deploy-demo.yml \
               -f environment=PRODUCTION
 
 
 
-            sleep 60
+            sleep 20
+
 
 
           done
